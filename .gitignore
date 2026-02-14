@@ -1,0 +1,36 @@
+# Build
+build/
+cmake-build-*/
+*.o
+*.so
+*.a
+
+# Executables
+driver
+interactive
+benchmark
+minimal
+sizecheck
+shell
+bench
+
+# Index files
+*.idx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
