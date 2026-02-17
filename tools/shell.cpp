@@ -32,7 +32,8 @@ static void PrintMenu() {
         "  [1] Insert / Update       [5] Bulk Insert\n"
         "  [2] Search by Key         [6] Display Records\n"
         "  [3] Range Query           [7] Statistics\n"
-        "  [4] Delete                [0] Exit\n"
+        "  [4] Delete                [8] Checkpoint\n"
+        "                            [0] Exit\n"
         "\n  > ";
 }
 
@@ -160,12 +161,18 @@ static void CmdStats(BPlusTree& tree) {
     std::vector<std::pair<key_t, std::string>> all;
     tree.RangeQuery(-999999, 999999, all);
 
-    std::cout << "\n  records:         " << all.size()
-              << "\n  index file:      " << tree.FilePath()
-              << "\n  page size:       " << PAGE_SIZE << " B"
-              << "\n  data size:       " << DATA_SIZE << " B"
-              << "\n  leaf capacity:   " << LEAF_MAX_KEYS
+    std::cout << "\n  records:           " << all.size()
+              << "\n  index file:        " << tree.FilePath()
+              << "\n  page size:         " << PAGE_SIZE << " B"
+              << "\n  data size:         " << DATA_SIZE << " B"
+              << "\n  leaf capacity:     " << LEAF_MAX_KEYS
               << "\n  internal capacity: " << INTERNAL_MAX_KEYS
+              << "\n  buffer pool hits:  " << tree.BufferPoolHits()
+              << "\n  buffer pool miss:  " << tree.BufferPoolMisses()
+              << "\n  buffer pool rate:  " << (tree.BufferPoolHitRate() * 100) << "%"
+              << "\n  WAL enabled:       " << (tree.WALEnabled() ? "yes" : "no")
+              << "\n  WAL bytes written: " << tree.WALBytesWritten()
+              << "\n  WAL records:       " << tree.WALRecordsWritten()
               << "\n";
 }
 
@@ -195,6 +202,10 @@ int main() {
             case 5: CmdBulkInsert(tree);   break;
             case 6: CmdDisplay(tree);      break;
             case 7: CmdStats(tree);        break;
+            case 8:
+                tree.Checkpoint();
+                std::cout << "  \xe2\x9c\x93 checkpoint complete\n";
+                break;
             case 0:
                 std::cout << "\n  Closing B+ tree and flushing to disk...\n";
                 running = false;

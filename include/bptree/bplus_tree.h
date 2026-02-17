@@ -9,6 +9,7 @@
 #include "status.h"
 #include "disk_manager.h"
 #include "buffer_pool.h"
+#include "wal.h"
 
 #include <memory>
 #include <string>
@@ -44,8 +45,10 @@ public:
     /// Open (or create) a B+ tree backed by the given file.
     /// @param index_file  Path to the index file.
     /// @param pool_size   Number of buffer pool frames (default 1024 = 4 MB).
+    /// @param enable_wal  Enable write-ahead logging for crash recovery.
     explicit BPlusTree(const std::string& index_file = DEFAULT_INDEX_FILE,
-                       size_t pool_size = DEFAULT_POOL_SIZE);
+                       size_t pool_size = DEFAULT_POOL_SIZE,
+                       bool enable_wal = true);
     ~BPlusTree();
 
     // Non-copyable
@@ -76,10 +79,18 @@ public:
     void Sync();
     [[nodiscard]] std::string FilePath() const;
 
+    /// Force a WAL checkpoint: flush all dirty pages, then truncate the log.
+    void Checkpoint();
+
     /// Buffer pool statistics.
     [[nodiscard]] size_t BufferPoolHits()   const;
     [[nodiscard]] size_t BufferPoolMisses() const;
     [[nodiscard]] double BufferPoolHitRate() const;
+
+    /// WAL statistics.
+    [[nodiscard]] size_t WALBytesWritten()   const;
+    [[nodiscard]] size_t WALRecordsWritten() const;
+    [[nodiscard]] bool   WALEnabled()        const;
 
 private:
     // -- Page access helpers (through buffer pool) ---------------------------
@@ -112,8 +123,9 @@ private:
     void ReadMetadata();
 
     // -- State ---------------------------------------------------------------
-    std::unique_ptr<DiskManager> disk_;
-    std::unique_ptr<BufferPool>  pool_;
+    std::unique_ptr<DiskManager>   disk_;
+    std::unique_ptr<BufferPool>    pool_;
+    std::unique_ptr<WriteAheadLog> wal_;
     int64_t root_offset_      = INVALID_PAGE_ID;
     int64_t next_page_offset_ = PAGE_SIZE;
 };

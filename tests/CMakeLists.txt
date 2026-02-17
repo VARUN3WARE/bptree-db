@@ -37,3 +37,12 @@ add_executable(buffer_pool_test
 )
 target_link_libraries(buffer_pool_test PRIVATE bptree GTest::gtest_main)
 gtest_discover_tests(buffer_pool_test)
+
+# -------------------------------------------------------------------
+# WAL tests
+# -------------------------------------------------------------------
+add_executable(wal_test
+    wal_test.cpp
+)
+target_link_libraries(wal_test PRIVATE bptree GTest::gtest_main)
+gtest_discover_tests(wal_test)

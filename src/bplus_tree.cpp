@@ -15,16 +15,34 @@ namespace bptree {
 // Construction / destruction
 // ============================================================================
 
-BPlusTree::BPlusTree(const std::string& index_file, size_t pool_size)
+BPlusTree::BPlusTree(const std::string& index_file, size_t pool_size,
+                     bool enable_wal)
     : disk_(std::make_unique<DiskManager>(index_file)),
       pool_(std::make_unique<BufferPool>(*disk_, pool_size))
 {
+    // Set up WAL if enabled.
+    if (enable_wal) {
+        std::string wal_path = index_file + ".wal";
+        wal_ = std::make_unique<WriteAheadLog>(wal_path);
+
+        // Run crash recovery: replay any pending page writes.
+        wal_->Recover(*disk_);
+
+        // Attach WAL to the buffer pool so flushes are logged.
+        pool_->SetWAL(wal_.get());
+    }
+
     ReadMetadata();
 }
 
 BPlusTree::~BPlusTree() {
     WriteMetadata();
     pool_->FlushAllPages();
+
+    // Checkpoint on clean shutdown to truncate the WAL.
+    if (wal_) {
+        wal_->EndCheckpoint();
+    }
 }
 
 // ============================================================================
@@ -90,6 +108,17 @@ std::string BPlusTree::FilePath() const { return disk_->FilePath(); }
 size_t BPlusTree::BufferPoolHits()   const { return pool_->HitCount(); }
 size_t BPlusTree::BufferPoolMisses() const { return pool_->MissCount(); }
 double BPlusTree::BufferPoolHitRate() const { return pool_->HitRate(); }
+
+size_t BPlusTree::WALBytesWritten()   const { return wal_ ? wal_->BytesWritten() : 0; }
+size_t BPlusTree::WALRecordsWritten() const { return wal_ ? wal_->RecordsWritten() : 0; }
+bool   BPlusTree::WALEnabled()        const { return wal_ != nullptr; }
+
+void BPlusTree::Checkpoint() {
+    if (!wal_) return;
+    wal_->BeginCheckpoint();
+    pool_->FlushAllPages();
+    wal_->EndCheckpoint();
+}
 
 // ============================================================================
 // Search

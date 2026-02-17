@@ -2,6 +2,7 @@
 /// @brief LRU buffer pool implementation.
 
 #include "bptree/buffer_pool.h"
+#include "bptree/wal.h"
 
 #include <cassert>
 #include <cstring>
@@ -112,6 +113,10 @@ bool BufferPool::FlushPage(int64_t page_id) {
     PageFrame& f = frames_[idx];
 
     if (f.dirty) {
+        // WAL protocol: log before flush.
+        if (wal_) {
+            wal_->LogPageWrite(page_id, f.data);
+        }
         char* disk_page = disk_.PageData(page_id);
         std::memcpy(disk_page, f.data, PAGE_SIZE);
         f.dirty = false;
@@ -120,9 +125,21 @@ bool BufferPool::FlushPage(int64_t page_id) {
 }
 
 void BufferPool::FlushAllPages() {
+    // WAL protocol: flush the WAL before writing pages to disk.
+    if (wal_) {
+        for (auto& [pid, idx] : page_table_) {
+            PageFrame& f = frames_[idx];
+            if (f.dirty) {
+                wal_->LogPageWrite(pid, f.data);
+            }
+        }
+        wal_->Flush();
+    }
+
     for (auto& [pid, idx] : page_table_) {
         PageFrame& f = frames_[idx];
         if (f.dirty) {
+            fprintf(stderr, "[FlushAllPages] flushing pid=%ld frame=%d\n", (long)pid, idx);
             char* disk_page = disk_.PageData(pid);
             std::memcpy(disk_page, f.data, PAGE_SIZE);
             f.dirty = false;
@@ -207,6 +224,11 @@ void BufferPool::EvictFrame(int frame_idx) {
 
     // Flush to disk if dirty.
     if (f.dirty && f.page_id != INVALID_PAGE_ID) {
+        // WAL protocol: log before evict.
+        if (wal_) {
+            wal_->LogPageWrite(f.page_id, f.data);
+            wal_->Flush();
+        }
         char* disk_page = disk_.PageData(f.page_id);
         std::memcpy(disk_page, f.data, PAGE_SIZE);
         f.dirty = false;

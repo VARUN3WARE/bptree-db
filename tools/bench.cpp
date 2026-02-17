@@ -145,7 +145,13 @@ int main() {
     Sep();
 
     double total = ms1 + ms2 + ms3 + ms4;
-    std::cout << "\n  Total: " << total << " ms\n\n";
+    std::cout << "\n  Total: " << total << " ms\n";
+    std::cout << "  Buffer pool hit rate: " << (tree.BufferPoolHitRate() * 100) << "%\n";
+    if (tree.WALEnabled()) {
+        std::cout << "  WAL bytes written:   " << tree.WALBytesWritten() << "\n";
+        std::cout << "  WAL records:         " << tree.WALRecordsWritten() << "\n";
+    }
+    std::cout << "\n";
 
     auto pct = [&](double v) { return v / total * 100; };
     std::printf("  %-26s %8.0f ms  (%4.1f%%)\n", "Sequential Insert", ms1, pct(ms1));

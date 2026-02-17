@@ -27,6 +27,8 @@
 #include <unordered_map>
 #include <vector>
 
+namespace bptree { class WriteAheadLog; }  // forward declaration
+
 namespace bptree {
 
 /// Metadata kept per in-memory page frame.
@@ -89,6 +91,12 @@ public:
     /// @return false if the page is pinned or not in the pool.
     bool DeletePage(int64_t page_id);
 
+    // -- WAL integration ----------------------------------------------------
+
+    /// Attach a WAL to the buffer pool.  When set, dirty pages are logged
+    /// to the WAL before being written to disk (WAL protocol).
+    void SetWAL(WriteAheadLog* wal) { wal_ = wal; }
+
     // -- Statistics ----------------------------------------------------------
 
     [[nodiscard]] size_t PoolSize()    const { return pool_size_; }
@@ -128,6 +136,9 @@ private:
 
     /// Free frame indices (frames not currently holding any page).
     std::vector<int> free_list_;
+
+    /// Optional WAL for crash recovery (not owned).
+    WriteAheadLog* wal_ = nullptr;
 
     // Stats
     size_t hits_   = 0;

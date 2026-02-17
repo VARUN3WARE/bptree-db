@@ -1,6 +1,7 @@
 add_library(bptree
     disk_manager.cpp
     buffer_pool.cpp
+    wal.cpp
     bplus_tree.cpp
 )
 
