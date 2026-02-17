@@ -53,6 +53,16 @@ public:
     [[nodiscard]] int64_t NextPageOffset() const;
     void SetNextPageOffset(int64_t offset);
 
+    /// Read / write the free-list head.
+    [[nodiscard]] int64_t FreeListHead() const;
+    void SetFreeListHead(int64_t offset);
+
+    /// Free a page: push it onto the free list for later reuse.
+    void FreePage(int64_t page_offset);
+
+    /// Try to reuse a freed page.  Returns INVALID_PAGE_ID if none available.
+    int64_t ReclaimPage();
+
     /// Persist the metadata page synchronously.
     void FlushMetadata();
 

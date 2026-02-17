@@ -2,13 +2,11 @@
 
 /// @file bplus_tree.h
 /// @brief Disk-based B+ tree index with insert, point query, range query,
-///        and delete with rebalancing.  Uses BufferPool for page-level caching
-///        over DiskManager.
+///        and delete.  Uses DiskManager for page-level I/O.
 
 #include "config.h"
 #include "status.h"
 #include "disk_manager.h"
-#include "buffer_pool.h"
 
 #include <memory>
 #include <string>
@@ -21,10 +19,6 @@ namespace bptree {
 ///
 /// Supports integer keys and fixed-size (100-byte) data payloads.
 /// Data is stored on disk via memory-mapped I/O and survives restarts.
-/// A buffer pool (LRU) sits between the tree and the disk to cache hot pages.
-///
-/// Delete operations properly rebalance the tree by redistributing or
-/// merging underful nodes.
 ///
 /// @par Thread safety
 /// Not thread-safe.  External locking is required for concurrent access.
@@ -42,10 +36,7 @@ namespace bptree {
 class BPlusTree {
 public:
     /// Open (or create) a B+ tree backed by the given file.
-    /// @param index_file  Path to the index file.
-    /// @param pool_size   Number of buffer pool frames (default 1024 = 4 MB).
-    explicit BPlusTree(const std::string& index_file = DEFAULT_INDEX_FILE,
-                       size_t pool_size = DEFAULT_POOL_SIZE);
+    explicit BPlusTree(const std::string& index_file = DEFAULT_INDEX_FILE);
     ~BPlusTree();
 
     // Non-copyable
@@ -54,66 +45,61 @@ public:
 
     // -- Core operations -----------------------------------------------------
 
-    /// Insert a key-value pair (upsert semantics).
+    /// Insert a key-value pair.  If the key already exists the value is
+    /// **updated** in place (upsert semantics).
+    /// @param key   Integer key.
+    /// @param data  Null-terminated string (max 99 chars) or raw 100-byte buf.
+    /// @return Status::OK() on success.
     Status Insert(key_t key, const char* data);
 
-    /// Point lookup (raw buffer).
+    /// Point lookup.
+    /// @param[in]  key       Key to search for.
+    /// @param[out] data_out  Receives the 100-byte payload on success.
+    /// @return Status::OK() if found, Status::NotFound() otherwise.
     Status Search(key_t key, char* data_out) const;
 
-    /// Point lookup (std::string).
+    /// Search returning a std::string for convenience.
     Status Search(key_t key, std::string& value_out) const;
 
-    /// Delete a key.  Rebalances underful nodes via redistribute / merge.
+    /// Delete a key.
+    /// @return Status::OK() on success, Status::NotFound() if absent.
+    /// @note  Current implementation does **not** rebalance after deletion.
     Status Delete(key_t key);
 
-    /// Range query -- returns all records with keys in [lower, upper].
+    /// Range query — returns all records with keys in [lower, upper].
+    /// Results are sorted by key.
     Status RangeQuery(key_t lower, key_t upper,
                       std::vector<std::pair<key_t, std::string>>& results) const;
 
     // -- Utilities -----------------------------------------------------------
 
+    /// True if the tree has no records.
     [[nodiscard]] bool IsEmpty() const;
+
+    /// Flush all data to disk.
     void Sync();
+
+    /// Return the underlying file path.
     [[nodiscard]] std::string FilePath() const;
 
-    /// Buffer pool statistics.
-    [[nodiscard]] size_t BufferPoolHits()   const;
-    [[nodiscard]] size_t BufferPoolMisses() const;
-    [[nodiscard]] double BufferPoolHitRate() const;
-
 private:
-    // -- Page access helpers (through buffer pool) ---------------------------
-    char* PinPage(int64_t page_id) const;
-    void  UnpinPage(int64_t page_id, bool dirty) const;
-    char* AllocPage(int64_t& page_id);
-    void  DeallocPage(int64_t page_id);
-
-    // -- Tree navigation -----------------------------------------------------
+    // -- Internal helpers ----------------------------------------------------
     int64_t SearchLeaf(key_t key) const;
 
-    // -- Insert helpers ------------------------------------------------------
-    bool InsertRecursive(int64_t node_off, key_t key, const char* data,
-                         key_t& split_key, int64_t& new_off);
     bool InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
                         key_t& split_key, int64_t& new_leaf_off);
+
     bool InsertIntoInternal(int64_t node_off, key_t key, int64_t child_off,
                             key_t& split_key, int64_t& new_node_off);
 
-    // -- Delete helpers (with rebalancing) ------------------------------------
-    // Returns true if the child became underful and the parent should fix it.
-    bool DeleteRecursive(int64_t node_off, key_t key);
-    bool DeleteFromLeaf(int64_t leaf_off, key_t key);
-    void FixChild(int64_t parent_off, int child_idx);
-    void FixLeafChild(int64_t parent_off, int child_idx);
-    void FixInternalChild(int64_t parent_off, int child_idx);
+    bool InsertRecursive(int64_t node_off, key_t key, const char* data,
+                         key_t& split_key, int64_t& new_off);
 
-    // -- Metadata ------------------------------------------------------------
     void WriteMetadata();
     void ReadMetadata();
 
     // -- State ---------------------------------------------------------------
     std::unique_ptr<DiskManager> disk_;
-    std::unique_ptr<BufferPool>  pool_;
     int64_t root_offset_      = INVALID_PAGE_ID;
     int64_t next_page_offset_ = PAGE_SIZE;
 };

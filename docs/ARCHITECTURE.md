@@ -61,8 +61,9 @@ The core index.
 - **Search**: traverse internal nodes → binary-ish scan in the leaf.
 - **Range Query**: locate starting leaf → follow `next_leaf` linked list →
   collect matching records.
-- **Delete**: locate leaf → shift records left. _(Rebalancing planned for
-  Phase 2.)_
+- **Delete**: recursive descent to target leaf → remove key → if underful,
+  try to redistribute from a sibling, otherwise merge → propagate underflow
+  upward through internal nodes → shrink root when empty.
 
 ### Status (`include/bptree/status.h`)
 
@@ -87,18 +88,32 @@ The file grows in 4 KB increments. All writes go through `mmap` (MAP_SHARED),
 so the kernel handles write-back to disk. `msync` is called on metadata
 changes and periodically via `SyncAsync()`.
 
-## Future: Buffer Pool Manager
+## Buffer Pool Manager (`include/bptree/buffer_pool.h`)
+
+Implemented LRU page cache sitting between BPlusTree and DiskManager.
 
 ```
 BPlusTree  ──→  BufferPool  ──→  DiskManager
-                 ↕ LRU cache of Page frames
+                 ↕ LRU cache of PageFrame slots
                  ↕ pin count tracking
                  ↕ dirty flag → flush on eviction
 ```
 
-The buffer pool will sit between the tree and the disk manager, providing:
+- **Configurable pool size** (default 1024 frames = 4 MB)
+- **Pin / unpin semantics**: callers `FetchPage()` to pin and must `UnpinPage()`
+  when done. Only unpinned frames are eviction candidates.
+- **LRU eviction**: doubly-linked list (front = oldest). On fetch miss, the
+  least-recently-used unpinned frame is evicted. Dirty frames are flushed to
+  disk before reuse.
+- **NewPage / DeletePage**: allocates via `DiskManager::AllocatePage()` (which
+  tries the free-page list first); deletion removes the frame and pushes the
+  page onto the disk free-list.
+- **Statistics**: hit count, miss count, hit rate exposed to the tree and
+  benchmark tool.
 
-- Fixed-size pool of in-memory page frames
-- LRU eviction of unpinned pages
-- Dirty-page tracking and write-back
-- Foundation for WAL integration
+## Free-Page List
+
+Deleted pages are pushed onto a singly-linked list stored in the metadata page
+(offset 16: `free_list_head`). Each freed page stores the previous head at
+offset 0. `AllocatePage()` tries `ReclaimPage()` before growing the file,
+so disk space is recycled.

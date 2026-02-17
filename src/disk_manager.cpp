@@ -57,6 +57,7 @@ DiskManager::DiskManager(const std::string& path) : path_(path) {
     if (sb.st_size == 0) {
         SetRootOffset(INVALID_PAGE_ID);
         SetNextPageOffset(PAGE_SIZE);
+        SetFreeListHead(INVALID_PAGE_ID);
         FlushMetadata();
     }
 }
@@ -90,6 +91,13 @@ const char* DiskManager::PageData(int64_t offset) const {
 }
 
 int64_t DiskManager::AllocatePage() {
+    // Try to reuse a freed page first.
+    int64_t reclaimed = ReclaimPage();
+    if (reclaimed != INVALID_PAGE_ID) {
+        std::memset(mapped_ + reclaimed, 0, PAGE_SIZE);
+        return reclaimed;
+    }
+
     int64_t next = NextPageOffset();
     int64_t new_next = next + static_cast<int64_t>(PAGE_SIZE);
     EnsureCapacity(new_next);
@@ -127,6 +135,40 @@ void DiskManager::SetNextPageOffset(int64_t offset) {
 
 void DiskManager::FlushMetadata() {
     ::msync(mapped_, PAGE_SIZE, MS_SYNC);
+}
+
+// ============================================================================
+// Free-page list
+// ============================================================================
+
+int64_t DiskManager::FreeListHead() const {
+    int64_t v;
+    std::memcpy(&v, mapped_ + META_FREE_LIST_HEAD, sizeof(v));
+    return v;
+}
+
+void DiskManager::SetFreeListHead(int64_t offset) {
+    std::memcpy(mapped_ + META_FREE_LIST_HEAD, &offset, sizeof(offset));
+}
+
+void DiskManager::FreePage(int64_t page_offset) {
+    if (page_offset < static_cast<int64_t>(PAGE_SIZE)) return;  // don't free metadata page
+
+    // Push onto the free-list: store current head as this page's "next".
+    int64_t old_head = FreeListHead();
+    std::memcpy(mapped_ + page_offset + FREE_PAGE_NEXT_OFFSET, &old_head, sizeof(old_head));
+    SetFreeListHead(page_offset);
+}
+
+int64_t DiskManager::ReclaimPage() {
+    int64_t head = FreeListHead();
+    if (head == INVALID_PAGE_ID) return INVALID_PAGE_ID;
+
+    // Pop from the free-list.
+    int64_t next;
+    std::memcpy(&next, mapped_ + head + FREE_PAGE_NEXT_OFFSET, sizeof(next));
+    SetFreeListHead(next);
+    return head;
 }
 
 // ============================================================================

@@ -20,20 +20,24 @@ portfolio-grade storage engine and eventually a mini database.
 
 ---
 
-## Phase 2 — Storage Engine Hardening
+## Phase 2 — Storage Engine Hardening (in progress)
 
-- [ ] **Buffer Pool Manager** — LRU page cache between the tree and disk;
-      pin / unpin semantics; configurable pool size
+- [x] **Buffer Pool Manager** — LRU page cache (configurable frame count,
+      default 1024 = 4 MB); pin / unpin semantics; dirty tracking;
+      hit / miss statistics; tested (10 unit tests)
 - [ ] **Write-Ahead Log (WAL)** — append-only log for crash recovery;
       redo-only protocol; checkpoint support
-- [ ] **Proper delete rebalancing** — merge / redistribute underful leaf and
-      internal nodes
+- [x] **Proper delete rebalancing** — redistribute from sibling when possible,
+      otherwise merge; handles both leaf and internal underflow;
+      root shrink when empty; tested (8 new tests including large-scale
+      delete, alternating delete, delete-then-range, persistence)
 - [ ] **Templated keys** — support `int`, `int64_t`, `std::string`, composite
       keys via `KeyComparator` trait
 - [ ] **Variable-length records** — slotted page layout; overflow pages
 - [ ] **Concurrency control** — reader-writer latches on pages; latch crabbing
       for safe concurrent tree traversal
-- [ ] **Free-page list** — reclaim deleted pages instead of leaking disk space
+- [x] **Free-page list** — singly-linked list through freed pages; reclaimed
+      on next `AllocatePage`; integrated with buffer pool `DeletePage`
 
 ---
 

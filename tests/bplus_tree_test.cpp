@@ -251,3 +251,112 @@ TEST_F(BPlusTreeTest, DeleteFromEmptyTree) {
     auto tree = MakeTree();
     EXPECT_TRUE(tree.Delete(1).IsNotFound());
 }
+
+// ============================================================================
+// Delete rebalancing
+// ============================================================================
+
+TEST_F(BPlusTreeTest, DeleteCausesLeafUnderflow) {
+    auto tree = MakeTree();
+    // Insert enough keys to span multiple leaves, then delete from one.
+    const int N = 100;
+    for (int i = 0; i < N; ++i) tree.Insert(i, ("v" + std::to_string(i)).c_str());
+    // Delete several keys from the low end to trigger underflow and rebalance.
+    for (int i = 0; i < 30; ++i) ASSERT_TRUE(tree.Delete(i).ok());
+    // Remaining keys should still be findable.
+    for (int i = 30; i < N; ++i) {
+        std::string val;
+        ASSERT_TRUE(tree.Search(i, val).ok()) << "key " << i << " missing";
+    }
+    // Deleted keys should be gone.
+    for (int i = 0; i < 30; ++i) {
+        std::string val;
+        EXPECT_TRUE(tree.Search(i, val).IsNotFound()) << "key " << i << " still present";
+    }
+}
+
+TEST_F(BPlusTreeTest, DeleteCausesMultipleMerges) {
+    auto tree = MakeTree();
+    const int N = 500;
+    for (int i = 0; i < N; ++i) tree.Insert(i, ("d" + std::to_string(i)).c_str());
+    // Delete all keys in reverse order -- stresses right-merge / root shrink.
+    for (int i = N - 1; i >= 0; --i) {
+        ASSERT_TRUE(tree.Delete(i).ok()) << "delete key " << i << " failed";
+    }
+    EXPECT_TRUE(tree.IsEmpty());
+}
+
+TEST_F(BPlusTreeTest, DeleteAlternatingKeys) {
+    auto tree = MakeTree();
+    const int N = 200;
+    for (int i = 0; i < N; ++i) tree.Insert(i, ("v" + std::to_string(i)).c_str());
+    // Delete even keys.
+    for (int i = 0; i < N; i += 2) {
+        ASSERT_TRUE(tree.Delete(i).ok()) << "delete " << i;
+    }
+    // Odd keys remain.
+    for (int i = 1; i < N; i += 2) {
+        std::string val;
+        ASSERT_TRUE(tree.Search(i, val).ok()) << "key " << i << " missing";
+        EXPECT_EQ(val, "v" + std::to_string(i));
+    }
+}
+
+TEST_F(BPlusTreeTest, DeleteThenRangeQuery) {
+    auto tree = MakeTree();
+    for (int i = 0; i < 100; ++i) tree.Insert(i, ("v" + std::to_string(i)).c_str());
+    // Delete keys 20-39.
+    for (int i = 20; i < 40; ++i) tree.Delete(i);
+    // Range query 10-50 should skip deleted keys.
+    std::vector<std::pair<key_t, std::string>> results;
+    ASSERT_TRUE(tree.RangeQuery(10, 50, results).ok());
+    // Should have keys 10-19, 40-50 = 10 + 11 = 21 results.
+    EXPECT_EQ(results.size(), 21u);
+}
+
+TEST_F(BPlusTreeTest, DeleteAndReinsertLargeScale) {
+    auto tree = MakeTree();
+    const int N = 300;
+    for (int i = 0; i < N; ++i) tree.Insert(i, "first");
+    for (int i = 0; i < N; ++i) tree.Delete(i);
+    EXPECT_TRUE(tree.IsEmpty());
+
+    // Reinsert everything.
+    for (int i = 0; i < N; ++i) tree.Insert(i, "second");
+    for (int i = 0; i < N; ++i) {
+        std::string val;
+        ASSERT_TRUE(tree.Search(i, val).ok()) << "key " << i;
+        EXPECT_EQ(val, "second");
+    }
+}
+
+TEST_F(BPlusTreeTest, DeletePersistsAcrossReopen) {
+    {
+        auto tree = MakeTree();
+        for (int i = 0; i < 50; ++i) tree.Insert(i, "data");
+        for (int i = 0; i < 25; ++i) tree.Delete(i);
+    }
+    {
+        auto tree = MakeTree();
+        for (int i = 0; i < 25; ++i) {
+            std::string val;
+            EXPECT_TRUE(tree.Search(i, val).IsNotFound());
+        }
+        for (int i = 25; i < 50; ++i) {
+            std::string val;
+            ASSERT_TRUE(tree.Search(i, val).ok()) << "key " << i;
+        }
+    }
+}
+
+TEST_F(BPlusTreeTest, BufferPoolStatsAfterOperations) {
+    auto tree = MakeTree();
+    for (int i = 0; i < 100; ++i) tree.Insert(i, "x");
+    for (int i = 0; i < 100; ++i) {
+        std::string val;
+        tree.Search(i, val);
+    }
+    // After repeated searches, hit rate should be positive.
+    EXPECT_GT(tree.BufferPoolHits(), 0u);
+    EXPECT_GT(tree.BufferPoolHitRate(), 0.0);
+}

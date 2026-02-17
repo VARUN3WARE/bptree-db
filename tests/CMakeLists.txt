@@ -28,3 +28,12 @@ add_executable(disk_manager_test
 )
 target_link_libraries(disk_manager_test PRIVATE bptree GTest::gtest_main)
 gtest_discover_tests(disk_manager_test)
+
+# -------------------------------------------------------------------
+# Buffer Pool tests
+# -------------------------------------------------------------------
+add_executable(buffer_pool_test
+    buffer_pool_test.cpp
+)
+target_link_libraries(buffer_pool_test PRIVATE bptree GTest::gtest_main)
+gtest_discover_tests(buffer_pool_test)

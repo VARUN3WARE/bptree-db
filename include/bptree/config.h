@@ -34,11 +34,30 @@ constexpr page_id_t HEADER_PAGE_SIZE  = PAGE_SIZE;  ///< byte-size of metadata p
 
 // ---------------------------------------------------------------------------
 // Metadata page layout (page 0)
-//   [0..7]   root_offset   (int64_t, -1 if tree is empty)
-//   [8..15]  next_page_off (int64_t, next free offset)
+//   [0..7]   root_offset      (int64_t, -1 if tree is empty)
+//   [8..15]  next_page_off    (int64_t, next free offset)
+//   [16..23] free_list_head   (int64_t, first free page, -1 if none)
 // ---------------------------------------------------------------------------
 constexpr size_t META_ROOT_OFFSET     = 0;
 constexpr size_t META_NEXT_PAGE       = 8;
+constexpr size_t META_FREE_LIST_HEAD  = 16;
+
+// ---------------------------------------------------------------------------
+// Free page: when a page is freed, byte 0..7 contains the offset of the
+// next free page (linked list through freed pages).
+// ---------------------------------------------------------------------------
+constexpr size_t FREE_PAGE_NEXT_OFFSET = 0;
+
+// ---------------------------------------------------------------------------
+// Buffer pool default size
+// ---------------------------------------------------------------------------
+constexpr size_t DEFAULT_POOL_SIZE = 1024;  ///< 1024 frames = 4 MB
+
+// ---------------------------------------------------------------------------
+// B+ tree rebalancing thresholds
+// ---------------------------------------------------------------------------
+constexpr int LEAF_MIN_KEYS     = (LEAF_MAX_KEYS + 1) / 2;      ///< ceil(order/2)
+constexpr int INTERNAL_MIN_KEYS = (INTERNAL_MAX_KEYS + 1) / 2;  ///< ceil(order/2)
 
 // ---------------------------------------------------------------------------
 // Default file name
