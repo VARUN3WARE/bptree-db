@@ -17,10 +17,10 @@ High-level overview of the storage engine's design.
 ├─────────────────────────────────────────────┤
 │        Buffer Pool Manager (Phase 2)        │
 │          LRU eviction · pin/unpin           │
-├─────────────────────────────────────────────┤
-│             DiskManager                     │
-│      mmap · page allocation · sync          │
-├─────────────────────────────────────────────┤
+├───────────────────────┬─────────────────────┤
+│   Write-Ahead Log     │    DiskManager      │
+│  crash recovery (WAL) │  mmap · alloc · sync│
+├───────────────────────┴─────────────────────┤
 │           Linux Kernel / FS                 │
 │          (ext4 / xfs / tmpfs)               │
 └─────────────────────────────────────────────┘
@@ -117,3 +117,49 @@ Deleted pages are pushed onto a singly-linked list stored in the metadata page
 (offset 16: `free_list_head`). Each freed page stores the previous head at
 offset 0. `AllocatePage()` tries `ReclaimPage()` before growing the file,
 so disk space is recycled.
+
+## Write-Ahead Log (`include/bptree/wal.h`)
+
+A redo-only WAL that guarantees crash recovery for the index file.
+
+### Protocol
+
+1. **Before** the buffer pool flushes any dirty page to the mmap region, the
+   page's full after-image (4096 bytes) is appended to the WAL file and
+   `fsync`'d.
+2. On **clean shutdown**, a checkpoint is written and the WAL is truncated.
+3. On **crash recovery** (next startup), all `PAGE_WRITE` records after the
+   last completed checkpoint are replayed to the data file, restoring any
+   pages that were logged but never made it to disk.
+
+### File Format
+
+```
+┌──────────────────────┐  offset 0
+│  WALFileHeader (16B) │  magic "WAL1" · version · checkpoint_lsn
+├──────────────────────┤
+│  LogRecordHeader     │  lsn · type · page_id · data_len · crc32
+│  + page data (4096B) │  (only for PAGE_WRITE records)
+├──────────────────────┤
+│  LogRecordHeader     │
+│  + page data         │
+├──────────────────────┤
+│        ...           │
+└──────────────────────┘
+```
+
+- **Record types**: `PAGE_WRITE`, `CHECKPOINT_BEGIN`, `CHECKPOINT_END`
+- **Checksum**: CRC32 over the header (with checksum field zeroed) XOR'd with
+  CRC32 of the payload.  Corrupt or truncated records are treated as
+  end-of-log.
+- **LSN** (log sequence number): monotonically increasing 64-bit counter.
+
+### Integration
+
+- `BufferPool::FlushPage()`, `FlushAllPages()`, and `EvictFrame()` log via
+  `WriteAheadLog::LogPageWrite()` before writing to the mmap.
+- `BPlusTree` constructor creates the WAL, runs `Recover()`, then attaches
+  the WAL to the buffer pool.
+- `BPlusTree` destructor and `Checkpoint()` write a checkpoint record and
+  truncate the WAL.
+- WAL can be disabled with `enable_wal=false` for backward compatibility.

@@ -139,7 +139,6 @@ void BufferPool::FlushAllPages() {
     for (auto& [pid, idx] : page_table_) {
         PageFrame& f = frames_[idx];
         if (f.dirty) {
-            fprintf(stderr, "[FlushAllPages] flushing pid=%ld frame=%d\n", (long)pid, idx);
             char* disk_page = disk_.PageData(pid);
             std::memcpy(disk_page, f.data, PAGE_SIZE);
             f.dirty = false;

@@ -352,9 +352,7 @@ bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
     new_leaf.SetNextLeaf(leaf.NextLeaf());
     UnpinPage(new_leaf_off, true);
 
-    // Left half (re-pin since AllocPage may have evicted it).
-    page = PinPage(leaf_off);
-    leaf = LeafPage(page);
+    // Left half stays in the original page (still pinned from above).
     leaf.SetNumKeys(mid);
     for (int i = 0; i < mid; ++i) leaf.SetRecord(i, recs[i].k, recs[i].d);
     leaf.SetNextLeaf(new_leaf_off);

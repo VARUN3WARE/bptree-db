@@ -25,8 +25,10 @@ portfolio-grade storage engine and eventually a mini database.
 - [x] **Buffer Pool Manager** — LRU page cache (configurable frame count,
       default 1024 = 4 MB); pin / unpin semantics; dirty tracking;
       hit / miss statistics; tested (10 unit tests)
-- [ ] **Write-Ahead Log (WAL)** — append-only log for crash recovery;
-      redo-only protocol; checkpoint support
+- [x] **Write-Ahead Log (WAL)** — append-only redo-only log for crash
+      recovery; CRC32 per-record checksums; full-page after-images;
+      checkpoint / truncate; WAL-aware buffer pool flush; automatic
+      recovery on startup; tested (12 unit tests)
 - [x] **Proper delete rebalancing** — redistribute from sibling when possible,
       otherwise merge; handles both leaf and internal underflow;
       root shrink when empty; tested (8 new tests including large-scale

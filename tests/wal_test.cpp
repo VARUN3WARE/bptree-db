@@ -195,6 +195,8 @@ TEST_F(WALTest, TreeWithWALPersistsNormally) {
             tree.Insert(i, ("val_" + std::to_string(i)).c_str());
         }
         EXPECT_TRUE(tree.WALEnabled());
+        // WAL records are generated on page flush, so trigger one.
+        tree.Checkpoint();
         EXPECT_GT(tree.WALBytesWritten(), 0u);
     }
 

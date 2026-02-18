@@ -124,8 +124,8 @@ private:
 
     // -- State ---------------------------------------------------------------
     std::unique_ptr<DiskManager>   disk_;
-    std::unique_ptr<BufferPool>    pool_;
-    std::unique_ptr<WriteAheadLog> wal_;
+    std::unique_ptr<WriteAheadLog> wal_;    ///< Destroyed AFTER pool_.
+    std::unique_ptr<BufferPool>    pool_;   ///< Destroyed first (may flush via WAL).
     int64_t root_offset_      = INVALID_PAGE_ID;
     int64_t next_page_offset_ = PAGE_SIZE;
 };
