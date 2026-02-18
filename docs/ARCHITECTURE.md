@@ -150,7 +150,7 @@ A redo-only WAL that guarantees crash recovery for the index file.
 
 - **Record types**: `PAGE_WRITE`, `CHECKPOINT_BEGIN`, `CHECKPOINT_END`
 - **Checksum**: CRC32 over the header (with checksum field zeroed) XOR'd with
-  CRC32 of the payload.  Corrupt or truncated records are treated as
+  CRC32 of the payload. Corrupt or truncated records are treated as
   end-of-log.
 - **LSN** (log sequence number): monotonically increasing 64-bit counter.
 
