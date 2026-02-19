@@ -18,6 +18,9 @@
 
 namespace bptree {
 
+// Forward declarations
+class TreeVisualizer;
+
 /// A persistent, disk-backed B+ tree index.
 ///
 /// Supports integer keys and fixed-size (100-byte) data payloads.
@@ -91,6 +94,9 @@ public:
     [[nodiscard]] size_t WALBytesWritten()   const;
     [[nodiscard]] size_t WALRecordsWritten() const;
     [[nodiscard]] bool   WALEnabled()        const;
+
+    // Allow visualizer to inspect tree internals
+    friend class TreeVisualizer;
 
 private:
     // -- Page access helpers (through buffer pool) ---------------------------
