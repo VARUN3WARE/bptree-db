@@ -3,6 +3,7 @@ add_library(bptree
     buffer_pool.cpp
     wal.cpp
     bplus_tree.cpp
+    visualizer.cpp
 )
 
 target_include_directories(bptree
