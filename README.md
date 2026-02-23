@@ -29,8 +29,8 @@ sorted key-value storage with efficient range queries.
 | Write-ahead log (WAL, CRC32, checkpoint/recovery)     | done           |
 | Structured logging (severity levels, file + console)  | done           |
 | Tree visualizer (DOT/Graphviz + ASCII)                | done           |
-| Concurrency control (reader-writer latches, crabbing) | Phase 2        |
-| Templated keys (int, int64_t, std::string)            | Phase 2        |
+| Concurrency control (reader-writer latches, crabbing) | done           |
+| Templated keys (int, int64_t, std::string)            | done           |
 | Variable-length records (slotted pages)               | Phase 2        |
 | SQL parser and executor                               | Phase 3        |
 | TCP server                                            | Phase 4        |
