@@ -46,3 +46,12 @@ add_executable(wal_test
 )
 target_link_libraries(wal_test PRIVATE bptree GTest::gtest_main)
 gtest_discover_tests(wal_test)
+
+# -------------------------------------------------------------------
+# Logger tests
+# -------------------------------------------------------------------
+add_executable(logger_test
+    logger_test.cpp
+)
+target_link_libraries(logger_test PRIVATE bptree GTest::gtest_main)
+gtest_discover_tests(logger_test)
