@@ -41,7 +41,7 @@ static void PrintMenu() {
 // Commands
 // ---------------------------------------------------------------------------
 
-static void CmdInsert(BPlusTree& tree) {
+static void CmdInsert(IntTree& tree) {
     std::cout << "\n  key (int): ";
     int key;
     if (!(std::cin >> key)) { ClearInput(); std::cout << "  ✗ invalid key\n"; return; }
@@ -57,7 +57,7 @@ static void CmdInsert(BPlusTree& tree) {
     else        std::cout << "  ✗ " << s.ToString() << "\n";
 }
 
-static void CmdSearch(BPlusTree& tree) {
+static void CmdSearch(IntTree& tree) {
     std::cout << "\n  key: ";
     int key;
     if (!(std::cin >> key)) { ClearInput(); std::cout << "  ✗ invalid key\n"; return; }
@@ -70,14 +70,14 @@ static void CmdSearch(BPlusTree& tree) {
     else                     std::cout << "  ✗ " << s.ToString() << "\n";
 }
 
-static void CmdRangeQuery(BPlusTree& tree) {
+static void CmdRangeQuery(IntTree& tree) {
     std::cout << "\n  lower bound: ";
     int lo; if (!(std::cin >> lo)) { ClearInput(); return; }
     std::cout << "  upper bound: ";
     int hi; if (!(std::cin >> hi)) { ClearInput(); return; }
     ClearInput();
 
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     Status s = tree.RangeQuery(lo, hi, results);
     if (!s.ok()) { std::cout << "  ✗ " << s.ToString() << "\n"; return; }
 
@@ -95,7 +95,7 @@ static void CmdRangeQuery(BPlusTree& tree) {
     }
 }
 
-static void CmdDelete(BPlusTree& tree) {
+static void CmdDelete(IntTree& tree) {
     std::cout << "\n  key to delete: ";
     int key;
     if (!(std::cin >> key)) { ClearInput(); return; }
@@ -116,7 +116,7 @@ static void CmdDelete(BPlusTree& tree) {
     else                     std::cout << "  ✗ " << s.ToString() << "\n";
 }
 
-static void CmdBulkInsert(BPlusTree& tree) {
+static void CmdBulkInsert(IntTree& tree) {
     int start, count;
     std::cout << "\n  starting key: ";
     if (!(std::cin >> start)) { ClearInput(); return; }
@@ -140,7 +140,7 @@ static void CmdBulkInsert(BPlusTree& tree) {
     std::cout << "  ✓ inserted " << ok << " / " << count << " records\n";
 }
 
-static void CmdDisplay(BPlusTree& tree) {
+static void CmdDisplay(IntTree& tree) {
     int lo, hi;
     std::cout << "\n  lower bound (-999999 for all): ";
     if (!(std::cin >> lo)) { ClearInput(); return; }
@@ -148,7 +148,7 @@ static void CmdDisplay(BPlusTree& tree) {
     if (!(std::cin >> hi)) { ClearInput(); return; }
     ClearInput();
 
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     tree.RangeQuery(lo, hi, results);
 
     std::cout << "  " << results.size() << " record(s):\n";
@@ -157,8 +157,8 @@ static void CmdDisplay(BPlusTree& tree) {
     }
 }
 
-static void CmdStats(BPlusTree& tree) {
-    std::vector<std::pair<key_t, std::string>> all;
+static void CmdStats(IntTree& tree) {
+    std::vector<std::pair<int, std::string>> all;
     tree.RangeQuery(-999999, 999999, all);
 
     std::cout << "\n  records:           " << all.size()
@@ -183,7 +183,7 @@ static void CmdStats(BPlusTree& tree) {
 int main() {
     PrintBanner();
 
-    BPlusTree tree;
+    IntTree tree;
     std::cout << "  Index file: " << tree.FilePath() << "\n";
 
     bool running = true;

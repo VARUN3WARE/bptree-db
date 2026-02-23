@@ -23,8 +23,8 @@ protected:
 
     void TearDown() override { std::remove(kTestFile); }
 
-    /// Helper: create a tree with the test file.
-    BPlusTree MakeTree() { return BPlusTree(kTestFile); }
+    /// Helper: create a fresh tree with the test file.
+    IntTree MakeTree() { return IntTree(kTestFile); }
 };
 
 // ============================================================================
@@ -95,7 +95,7 @@ TEST_F(BPlusTreeTest, RangeQueryBasic) {
         tree.Insert(i, ("val_" + std::to_string(i)).c_str());
     }
 
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     ASSERT_TRUE(tree.RangeQuery(5, 10, results).ok());
 
     ASSERT_EQ(results.size(), 6u);
@@ -108,14 +108,14 @@ TEST_F(BPlusTreeTest, RangeQueryEmptyResult) {
     auto tree = MakeTree();
     tree.Insert(1, "x");
 
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     ASSERT_TRUE(tree.RangeQuery(100, 200, results).ok());
     EXPECT_TRUE(results.empty());
 }
 
 TEST_F(BPlusTreeTest, RangeQueryInvalidRange) {
     auto tree = MakeTree();
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     Status s = tree.RangeQuery(10, 5, results);
     EXPECT_FALSE(s.ok());
 }
@@ -176,7 +176,7 @@ TEST_F(BPlusTreeTest, RangeQueryAfterSplits) {
         tree.Insert(i, ("d" + std::to_string(i)).c_str());
     }
 
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     ASSERT_TRUE(tree.RangeQuery(400, 600, results).ok());
 
     ASSERT_EQ(results.size(), 201u);
@@ -308,7 +308,7 @@ TEST_F(BPlusTreeTest, DeleteThenRangeQuery) {
     // Delete keys 20-39.
     for (int i = 20; i < 40; ++i) tree.Delete(i);
     // Range query 10-50 should skip deleted keys.
-    std::vector<std::pair<key_t, std::string>> results;
+    std::vector<std::pair<int, std::string>> results;
     ASSERT_TRUE(tree.RangeQuery(10, 50, results).ok());
     // Should have keys 10-19, 40-50 = 10 + 11 = 21 results.
     EXPECT_EQ(results.size(), 21u);

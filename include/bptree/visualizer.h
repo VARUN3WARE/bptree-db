@@ -15,7 +15,7 @@
 namespace bptree {
 
 // Forward declaration
-class BPlusTree;
+template <typename K, typename Cmp> class BPlusTree;
 
 /// Visualizer for B+ tree structure.
 ///
@@ -29,32 +29,29 @@ class BPlusTree;
 /// @endcode
 class TreeVisualizer {
 public:
-    explicit TreeVisualizer(const BPlusTree& tree);
+    explicit TreeVisualizer(const BPlusTree<int, DefaultComparator<int>>& tree);
 
     /// Generate DOT format representation of the tree.
     /// @param output_path  Path to write .dot file (optional, returns string if empty)
     /// @return DOT format string
     std::string GenerateDOT(const std::string& output_path = "");
 
-    /// Generate SVG directly (requires graphviz installed)
+    /// Generate SVG directly (requires graphviz installed).
     /// @param output_path  Path to write .svg file
     /// @return true on success
     bool GenerateSVG(const std::string& output_path);
 
-    /// Print ASCII art tree structure to console
+    /// Print ASCII art tree structure to an output stream.
     void PrintASCII(std::ostream& os = std::cout) const;
-
 private:
-    const BPlusTree& tree_;
+    const BPlusTree<int, DefaultComparator<int>>& tree_;
     
-    // Internal helpers for DOT generation
     void GenerateDOTRecursive(std::ostringstream& out, int64_t node_offset, 
                               int& node_id_counter,
                               std::unordered_map<int64_t, int>& offset_to_id) const;
     
     std::string GetNodeLabel(const char* node_data, bool is_leaf, int num_keys) const;
     
-    // ASCII tree helpers
     void PrintASCIIRecursive(std::ostream& os, int64_t node_offset, 
                              const std::string& prefix, bool is_tail) const;
 };

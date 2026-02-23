@@ -11,40 +11,53 @@ sorted key-value storage with efficient range queries.
 
 ## Features
 
-| Feature                                               | Status     |
-| ----------------------------------------------------- | ---------- |
-| Disk-persistent B+ tree with 4 KB pages               | ✅         |
-| Memory-mapped I/O (`mmap`) for zero-copy reads        | ✅         |
-| Insert / upsert / point lookup / range query / delete | ✅         |
-| Automatic node splitting on overflow                  | ✅         |
-| Leaf linked-list for fast range scans                 | ✅         |
-| Clean separation: DiskManager → Page → BPlusTree      | ✅         |
-| `Status` error type (no `exit(1)`)                    | ✅         |
-| Google Test suite (20+ tests)                         | ✅         |
-| Interactive CLI shell                                 | ✅         |
-| Performance benchmark tool                            | ✅         |
-| Buffer pool manager                                   | 🔜 Phase 2 |
-| Write-ahead log (WAL)                                 | 🔜 Phase 2 |
-| Concurrency control                                   | 🔜 Phase 2 |
-| SQL parser & executor                                 | 🔜 Phase 3 |
-| TCP server                                            | 🔜 Phase 4 |
+| Feature                                               | Status         |
+| ----------------------------------------------------- | -------------- |
+| Disk-persistent B+ tree with 4 KB pages               | done           |
+| Memory-mapped I/O (mmap) for zero-copy reads          | done           |
+| Insert / upsert / point lookup / range query / delete | done           |
+| Automatic node splitting on overflow                  | done           |
+| Leaf linked-list for fast range scans                 | done           |
+| Delete rebalancing (redistribute + merge)             | done           |
+| Free-page list (recycled disk space)                  | done           |
+| Clean separation: DiskManager -> BufferPool -> Tree   | done           |
+| Status error type (no exit(1))                        | done           |
+| Google Test suite (40+ tests)                         | done           |
+| Interactive CLI shell                                 | done           |
+| Performance benchmark tool                            | done           |
+| Buffer pool manager (LRU, pin/unpin, hit/miss stats)  | done           |
+| Write-ahead log (WAL, CRC32, checkpoint/recovery)     | done           |
+| Structured logging (severity levels, file + console)  | done           |
+| Tree visualizer (DOT/Graphviz + ASCII)                | done           |
+| Concurrency control (reader-writer latches, crabbing) | Phase 2        |
+| Templated keys (int, int64_t, std::string)            | Phase 2        |
+| Variable-length records (slotted pages)               | Phase 2        |
+| SQL parser and executor                               | Phase 3        |
+| TCP server                                            | Phase 4        |
 
 ## Architecture
 
 ```
 Client (shell / bench / tests)
-        │
-        ▼
-   ┌──────────┐    Insert, Search, Delete, RangeQuery
-   │ BPlusTree│
-   └────┬─────┘
-        │  uses page wrappers (LeafPage, InternalPage)
-        ▼
-   ┌──────────┐    mmap, page alloc, sync
-   │DiskManager│
-   └────┬─────┘
-        │
-        ▼
+        |
+        v
+   +-----------+    Insert, Search, Delete, RangeQuery
+   | BPlusTree |
+   +-----+-----+
+         |  uses page wrappers (LeafPage, InternalPage)
+         v
+   +-----------+    LRU cache, pin/unpin, dirty tracking
+   | BufferPool|
+   +-----+-----+
+         |
+   +-----+--------+
+   |              |
+   v              v
+  WAL         DiskManager    mmap, page alloc, sync, free-page list
+   |              |
+   +--------------+
+         |
+         v
    [ index file ]   (4 KB pages, grows dynamically)
 ```
 
@@ -108,15 +121,21 @@ tree.RangeQuery(10, 50, results);
 
 // Delete
 tree.Delete(42);
+
+// Buffer pool stats
+std::cout << "Hit rate: " << tree.BufferPoolHitRate() << std::endl;
+
+// WAL checkpoint
+tree.Checkpoint();
 ```
 
-### Key Types & Sizes
+### Key Types and Sizes
 
 | Parameter         | Value             |
 | ----------------- | ----------------- |
 | Page size         | 4096 bytes        |
 | Record payload    | 100 bytes (fixed) |
-| Key type          | `int` (32-bit)    |
+| Key type          | int (32-bit)      |
 | Leaf capacity     | 35 records / node |
 | Internal capacity | 100 keys / node   |
 
@@ -132,36 +151,47 @@ tree.Delete(42);
 ## Project Structure
 
 ```
-├── CMakeLists.txt              # Root build configuration
-├── include/bptree/
-│   ├── config.h                # Constants & type aliases
-│   ├── status.h                # Error handling type
-│   ├── page.h                  # LeafPage & InternalPage wrappers
-│   ├── disk_manager.h          # Memory-mapped file manager
-│   └── bplus_tree.h            # B+ tree public API
-├── src/
-│   ├── disk_manager.cpp        # DiskManager implementation
-│   └── bplus_tree.cpp          # B+ tree implementation
-├── tests/
-│   ├── bplus_tree_test.cpp     # B+ tree unit tests
-│   └── disk_manager_test.cpp   # DiskManager unit tests
-├── tools/
-│   ├── shell.cpp               # Interactive CLI
-│   └── bench.cpp               # Performance benchmark
-└── docs/
-    ├── ARCHITECTURE.md         # Design documentation
-    └── ROADMAP.md              # Phased development plan
+CMakeLists.txt              -- Root build configuration
+include/bptree/
+    config.h                -- Constants and type aliases
+    status.h                -- Error handling type
+    page.h                  -- LeafPage and InternalPage wrappers
+    disk_manager.h          -- Memory-mapped file manager
+    buffer_pool.h           -- LRU page cache
+    wal.h                   -- Write-ahead log
+    logger.h                -- Structured logger (header-only)
+    visualizer.h            -- DOT/ASCII tree visualizer
+    bplus_tree.h            -- B+ tree public API
+src/
+    disk_manager.cpp        -- DiskManager implementation
+    buffer_pool.cpp         -- BufferPool implementation
+    wal.cpp                 -- WAL implementation
+    bplus_tree.cpp          -- B+ tree implementation
+    visualizer.cpp          -- Visualizer implementation
+tests/
+    bplus_tree_test.cpp     -- B+ tree unit tests
+    buffer_pool_test.cpp    -- Buffer pool unit tests
+    disk_manager_test.cpp   -- DiskManager unit tests
+    logger_test.cpp         -- Logger unit tests
+    wal_test.cpp            -- WAL unit tests
+tools/
+    shell.cpp               -- Interactive CLI
+    bench.cpp               -- Performance benchmark
+    visualize.cpp           -- Standalone visualizer tool
+docs/
+    ARCHITECTURE.md         -- Design documentation
+    ROADMAP.md              -- Phased development plan
 ```
 
 ## Roadmap
 
 | Phase | Focus                                             | Status     |
 | ----- | ------------------------------------------------- | ---------- |
-| **1** | Code quality, modular architecture, testing       | ✅ Done    |
-| **2** | Buffer pool, WAL, concurrency, delete rebalancing | 🔧 Next    |
-| **3** | SQL tokenizer, parser, executor                   | 📋 Planned |
-| **4** | TCP server, wire protocol, client library         | 📋 Planned |
-| **5** | Logging, metrics, CI/CD, fuzz testing             | 📋 Planned |
+| 1     | Code quality, modular architecture, testing       | done       |
+| 2     | Buffer pool, WAL, concurrency, delete rebalancing | in progress|
+| 3     | SQL tokenizer, parser, executor                   | planned    |
+| 4     | TCP server, wire protocol, client library         | planned    |
+| 5     | Logging, metrics, CI/CD, fuzz testing             | planned    |
 
 Full details: [docs/ROADMAP.md](docs/ROADMAP.md)
 

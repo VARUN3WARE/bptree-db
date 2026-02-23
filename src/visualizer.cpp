@@ -12,7 +12,7 @@
 
 namespace bptree {
 
-TreeVisualizer::TreeVisualizer(const BPlusTree& tree) : tree_(tree) {}
+TreeVisualizer::TreeVisualizer(const BPlusTree<int, DefaultComparator<int>>& tree) : tree_(tree) {}
 
 std::string TreeVisualizer::GenerateDOT(const std::string& output_path) {
     std::ostringstream out;
@@ -37,7 +37,7 @@ std::string TreeVisualizer::GenerateDOT(const std::string& output_path) {
         for (const auto& [offset, id] : offset_to_id) {
             char* page = tree_.pool_->FetchPage(offset);
             if (page && PageIsLeaf(page)) {
-                LeafPage leaf(page);
+                LeafPage<int> leaf(page);
                 int64_t next = leaf.NextLeaf();
                 if (next != INVALID_PAGE_ID && offset_to_id.count(next)) {
                     out << "  node" << id << " -> node" << offset_to_id[next] 
@@ -82,7 +82,7 @@ void TreeVisualizer::GenerateDOTRecursive(
     bool is_leaf = PageIsLeaf(page);
     
     if (is_leaf) {
-        LeafPage leaf(page);
+        LeafPage<int> leaf(page);
         int num_keys = leaf.NumKeys();
         
         // Create label with keys
@@ -112,7 +112,7 @@ void TreeVisualizer::GenerateDOTRecursive(
         out << "\", style=filled, fillcolor=lightgreen];\n";
         
     } else {
-        InternalPage internal(page);
+        InternalPage<int> internal(page);
         int num_keys = internal.NumKeys();
         
         // Create label with keys
@@ -196,7 +196,7 @@ void TreeVisualizer::PrintASCIIRecursive(
     os << (is_tail ? "└── " : "├── ");
     
     if (is_leaf) {
-        LeafPage leaf(page);
+        LeafPage<int> leaf(page);
         int num_keys = leaf.NumKeys();
         os << "[LEAF] Keys: ";
         for (int i = 0; i < std::min(num_keys, 5); ++i) {
@@ -206,7 +206,7 @@ void TreeVisualizer::PrintASCIIRecursive(
         if (num_keys > 5) os << ", ... (" << num_keys << " total)";
         os << "\n";
     } else {
-        InternalPage internal(page);
+        InternalPage<int> internal(page);
         int num_keys = internal.NumKeys();
         os << "[INTERNAL] Keys: ";
         for (int i = 0; i < std::min(num_keys, 5); ++i) {
