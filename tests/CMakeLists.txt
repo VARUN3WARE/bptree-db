@@ -66,3 +66,12 @@ add_executable(concurrency_test
 target_link_libraries(concurrency_test PRIVATE bptree GTest::gtest_main Threads::Threads)
 gtest_discover_tests(concurrency_test)
 
+# -------------------------------------------------------------------
+# Typed key tests (int64_t and std::string key specializations)
+# -------------------------------------------------------------------
+add_executable(typed_key_test
+    typed_key_test.cpp
+)
+target_link_libraries(typed_key_test PRIVATE bptree GTest::gtest_main)
+gtest_discover_tests(typed_key_test)
+
