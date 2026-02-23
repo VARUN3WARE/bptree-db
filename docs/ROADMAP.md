@@ -33,11 +33,11 @@ portfolio-grade storage engine and eventually a mini database.
       otherwise merge; handles both leaf and internal underflow;
       root shrink when empty; tested (8 new tests including large-scale
       delete, alternating delete, delete-then-range, persistence)
-- [ ] **Templated keys** — support `int`, `int64_t`, `std::string`, composite
-      keys via `KeyComparator` trait
+- [x] **Templated keys** — support `int`, `int64_t`, `std::string`, composite
+      keys via `KeyComparator` trait; `BPlusTree<K, Cmp>` implementation; tested
 - [ ] **Variable-length records** — slotted page layout; overflow pages
-- [ ] **Concurrency control** — reader-writer latches on pages; latch crabbing
-      for safe concurrent tree traversal
+- [x] **Concurrency control** — reader-writer latches on pages; latch crabbing
+      for safe concurrent tree traversal; tested (4 multi-threading tests)
 - [x] **Free-page list** — singly-linked list through freed pages; reclaimed
       on next `AllocatePage`; integrated with buffer pool `DeletePage`
 
