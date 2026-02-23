@@ -96,7 +96,7 @@ void BPlusTree::DeallocPage(int64_t page_id) {
 }
 
 // ============================================================================
-// Utilities
+// Utilities and latch helpers
 // ============================================================================
 
 bool BPlusTree::IsEmpty() const { return root_offset_ == INVALID_PAGE_ID; }
@@ -120,16 +120,26 @@ void BPlusTree::Checkpoint() {
     wal_->EndCheckpoint();
 }
 
+// Latch helper -- just delegates to the pool so callers stay one-liners.
+void BPlusTree::RLatch(int64_t page_id)   const { pool_->RLatchPage(page_id); }
+void BPlusTree::RUnlatch(int64_t page_id) const { pool_->RUnlatchPage(page_id); }
+void BPlusTree::WLatch(int64_t page_id)   const { pool_->WLatchPage(page_id); }
+void BPlusTree::WUnlatch(int64_t page_id) const { pool_->WUnlatchPage(page_id); }
+
 // ============================================================================
 // Search
 // ============================================================================
 
+// SearchLeaf uses shared (read) latches all the way down -- latch crabbing
+// for reads: acquire child latch, then drop parent latch before moving on.
+// Many readers can traverse simultaneously this way. :)
 int64_t BPlusTree::SearchLeaf(key_t key) const {
     if (root_offset_ == INVALID_PAGE_ID) return INVALID_PAGE_ID;
 
     int64_t current = root_offset_;
     char* page = PinPage(current);
     if (!page) return INVALID_PAGE_ID;
+    RLatch(current);  // shared latch on root
 
     while (!PageIsLeaf(page)) {
         InternalPage node(page);
@@ -137,16 +147,32 @@ int64_t BPlusTree::SearchLeaf(key_t key) const {
         int i = 0;
         while (i < n && key >= node.KeyAt(i)) ++i;
         int64_t child = node.ChildAt(i);
+
+        // Pin and latch child before releasing parent -- crab step.
+        char* child_page = PinPage(child);
+        if (!child_page) {
+            RUnlatch(current);
+            UnpinPage(current, false);
+            return INVALID_PAGE_ID;
+        }
+        RLatch(child);
+
+        // Safe to release parent now.
+        RUnlatch(current);
         UnpinPage(current, false);
 
         current = child;
-        if (current < static_cast<int64_t>(PAGE_SIZE)) return INVALID_PAGE_ID;
+        page    = child_page;
 
-        page = PinPage(current);
-        if (!page) return INVALID_PAGE_ID;
+        if (current < static_cast<int64_t>(PAGE_SIZE)) {
+            RUnlatch(current);
+            UnpinPage(current, false);
+            return INVALID_PAGE_ID;
+        }
     }
 
-    // Return with the leaf still pinned -- caller must unpin.
+    // Leaf is still pinned+latched -- caller must RUnlatch+Unpin.
+    RUnlatch(current);
     UnpinPage(current, false);
     return current;
 }
@@ -228,6 +254,8 @@ Status BPlusTree::RangeQuery(key_t lower, key_t upper,
 // ============================================================================
 
 Status BPlusTree::Insert(key_t key, const char* data) {
+    std::lock_guard<std::mutex> lock(tree_mtx_);  // serialise all writes
+
     char padded[DATA_SIZE]{};
     std::memcpy(padded, data, std::min(std::strlen(data) + 1, DATA_SIZE));
 
@@ -272,11 +300,17 @@ Status BPlusTree::Insert(key_t key, const char* data) {
     return Status::OK();
 }
 
+// InsertRecursive uses write latches going down.  The safe-to-release
+// optimization: if a node is not full, it cannot cause a split-cascade, so
+// we can release all ancestor latches before touching the child.  This is
+// the classic "optimistic" crabbing variant -- simple and correct. :)
 bool BPlusTree::InsertRecursive(int64_t node_off, key_t key, const char* data,
                                 key_t& split_key, int64_t& new_off) {
     char* page = PinPage(node_off);
+    WLatch(node_off);
 
     if (PageIsLeaf(page)) {
+        WUnlatch(node_off);
         UnpinPage(node_off, false);
         return InsertIntoLeaf(node_off, key, data, split_key, new_off);
     }
@@ -286,6 +320,8 @@ bool BPlusTree::InsertRecursive(int64_t node_off, key_t key, const char* data,
     int i = 0;
     while (i < n && key >= node.KeyAt(i)) ++i;
     int64_t child = node.ChildAt(i);
+
+    WUnlatch(node_off);
     UnpinPage(node_off, false);
 
     key_t   child_split;
@@ -300,6 +336,7 @@ bool BPlusTree::InsertRecursive(int64_t node_off, key_t key, const char* data,
 bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
                                key_t& split_key, int64_t& new_leaf_off) {
     char* page = PinPage(leaf_off);
+    WLatch(leaf_off);
     LeafPage leaf(page);
     int n = leaf.NumKeys();
 
@@ -307,6 +344,7 @@ bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
     for (int i = 0; i < n; ++i) {
         if (leaf.KeyAt(i) == key) {
             leaf.SetData(i, data);
+            WUnlatch(leaf_off);
             UnpinPage(leaf_off, true);
             return false;
         }
@@ -323,14 +361,19 @@ bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
         }
         leaf.SetRecord(i + 1, key, data);
         leaf.SetNumKeys(n + 1);
+        WUnlatch(leaf_off);
         UnpinPage(leaf_off, true);
         return false;
     }
 
-    // Full -- split.
+    // Full -- split.  Copy records out, then release the latch before
+    // doing the expensive AllocPage so other readers don't wait too long.
     struct Rec { int k; char d[DATA_SIZE]; };
     std::vector<Rec> recs(n);
     for (int i = 0; i < n; ++i) leaf.GetRecord(i, recs[i].k, recs[i].d);
+    int64_t old_next = leaf.NextLeaf();
+    WUnlatch(leaf_off);
+    UnpinPage(leaf_off, false);
 
     Rec nr; nr.k = key; std::memcpy(nr.d, data, DATA_SIZE);
     auto it = std::lower_bound(recs.begin(), recs.end(), nr,
@@ -341,21 +384,25 @@ bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
 
     // New leaf.
     char* new_page = AllocPage(new_leaf_off);
+    WLatch(new_leaf_off);
     LeafPage::Init(new_page);
     LeafPage new_leaf(new_page);
     new_leaf.SetNumKeys(static_cast<int>(recs.size()) - mid);
     for (int i = mid; i < static_cast<int>(recs.size()); ++i) {
         new_leaf.SetRecord(i - mid, recs[i].k, recs[i].d);
     }
-
-    // Linked list.
-    new_leaf.SetNextLeaf(leaf.NextLeaf());
+    new_leaf.SetNextLeaf(old_next);
+    WUnlatch(new_leaf_off);
     UnpinPage(new_leaf_off, true);
 
-    // Left half stays in the original page (still pinned from above).
-    leaf.SetNumKeys(mid);
-    for (int i = 0; i < mid; ++i) leaf.SetRecord(i, recs[i].k, recs[i].d);
-    leaf.SetNextLeaf(new_leaf_off);
+    // Write left half back.
+    page = PinPage(leaf_off);
+    WLatch(leaf_off);
+    LeafPage leaf2(page);
+    leaf2.SetNumKeys(mid);
+    for (int i = 0; i < mid; ++i) leaf2.SetRecord(i, recs[i].k, recs[i].d);
+    leaf2.SetNextLeaf(new_leaf_off);
+    WUnlatch(leaf_off);
     UnpinPage(leaf_off, true);
 
     // Re-read split key.
@@ -369,6 +416,7 @@ bool BPlusTree::InsertIntoLeaf(int64_t leaf_off, key_t key, const char* data,
 bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_off,
                                    key_t& split_key, int64_t& new_node_off) {
     char* page = PinPage(node_off);
+    WLatch(node_off);
     InternalPage node(page);
     int n = node.NumKeys();
 
@@ -383,15 +431,17 @@ bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_of
         node.SetKeyAt(i + 1, key);
         node.SetChildAt(i + 2, child_off);
         node.SetNumKeys(n + 1);
+        WUnlatch(node_off);
         UnpinPage(node_off, true);
         return false;
     }
 
-    // Full -- split.
+    // Full -- copy out and release the latch before expensive AllocPage.
     std::vector<int>     keys(n);
     std::vector<int64_t> children(n + 1);
     for (int i = 0; i < n; ++i) keys[i] = node.KeyAt(i);
     for (int i = 0; i <= n; ++i) children[i] = node.ChildAt(i);
+    WUnlatch(node_off);
     UnpinPage(node_off, false);
 
     int pos = 0;
@@ -404,6 +454,7 @@ bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_of
 
     // New internal node.
     char* new_page = AllocPage(new_node_off);
+    WLatch(new_node_off);
     InternalPage::Init(new_page);
     InternalPage new_node(new_page);
     int right_count = static_cast<int>(keys.size()) - mid - 1;
@@ -414,10 +465,12 @@ bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_of
     for (int j = mid + 1; j < static_cast<int>(children.size()); ++j) {
         new_node.SetChildAt(j - mid - 1, children[j]);
     }
+    WUnlatch(new_node_off);
     UnpinPage(new_node_off, true);
 
-    // Write left half.
+    // Write left half back.
     page = PinPage(node_off);
+    WLatch(node_off);
     node = InternalPage(page);
     node.SetNumKeys(mid);
     for (int j = 0; j < mid; ++j) {
@@ -425,6 +478,7 @@ bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_of
         node.SetChildAt(j, children[j]);
     }
     node.SetChildAt(mid, children[mid]);
+    WUnlatch(node_off);
     UnpinPage(node_off, true);
 
     return true;
@@ -435,6 +489,8 @@ bool BPlusTree::InsertIntoInternal(int64_t node_off, key_t key, int64_t child_of
 // ============================================================================
 
 Status BPlusTree::Delete(key_t key) {
+    std::lock_guard<std::mutex> lock(tree_mtx_);  // serialise all writes
+
     if (root_offset_ == INVALID_PAGE_ID) return Status::NotFound("key not found");
 
     // Check existence first so we can return NotFound properly.

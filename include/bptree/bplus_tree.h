@@ -10,8 +10,10 @@
 #include "disk_manager.h"
 #include "buffer_pool.h"
 #include "wal.h"
+#include "latch.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <utility>
@@ -31,7 +33,10 @@ class TreeVisualizer;
 /// merging underful nodes.
 ///
 /// @par Thread safety
-/// Not thread-safe.  External locking is required for concurrent access.
+/// Thread-safe for concurrent readers and writers via latch crabbing.
+/// Each page frame carries a reader-writer latch; the tree acquires and
+/// releases latches top-down (crab-walk) so readers never block each other
+/// and writers only hold the minimum set of pages needed. :)
 ///
 /// @par Example
 /// @code
@@ -105,6 +110,13 @@ private:
     char* AllocPage(int64_t& page_id);
     void  DeallocPage(int64_t page_id);
 
+    // -- Latch helpers (delegated to BufferPool) -----------------------------
+    // Page must already be pinned before latching.
+    void RLatch(int64_t page_id)   const;
+    void RUnlatch(int64_t page_id) const;
+    void WLatch(int64_t page_id)   const;
+    void WUnlatch(int64_t page_id) const;
+
     // -- Tree navigation -----------------------------------------------------
     int64_t SearchLeaf(key_t key) const;
 
@@ -134,6 +146,11 @@ private:
     std::unique_ptr<BufferPool>    pool_;   ///< Destroyed first (may flush via WAL).
     int64_t root_offset_      = INVALID_PAGE_ID;
     int64_t next_page_offset_ = PAGE_SIZE;
+
+    /// Tree-level mutex serialises all write operations (Insert / Delete).
+    /// Reads (Search, RangeQuery) use only page-level latches and can run
+    /// truly concurrently with each other.
+    mutable std::mutex tree_mtx_;
 };
 
 }  // namespace bptree

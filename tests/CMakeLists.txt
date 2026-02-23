@@ -55,3 +55,14 @@ add_executable(logger_test
 )
 target_link_libraries(logger_test PRIVATE bptree GTest::gtest_main)
 gtest_discover_tests(logger_test)
+
+# -------------------------------------------------------------------
+# Concurrency tests (reader-writer latches, latch crabbing)
+# -------------------------------------------------------------------
+find_package(Threads REQUIRED)
+add_executable(concurrency_test
+    concurrency_test.cpp
+)
+target_link_libraries(concurrency_test PRIVATE bptree GTest::gtest_main Threads::Threads)
+gtest_discover_tests(concurrency_test)
+

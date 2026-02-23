@@ -21,9 +21,11 @@
 
 #include "config.h"
 #include "disk_manager.h"
+#include "latch.h"
 
 #include <cstdint>
 #include <list>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -32,11 +34,16 @@ namespace bptree { class WriteAheadLog; }  // forward declaration
 namespace bptree {
 
 /// Metadata kept per in-memory page frame.
+///
+/// Each frame gets its own latch so tree operations can use latch crabbing
+/// without any coarse-grained global lock.  Readers share the latch;  writers
+/// take exclusive ownership. :)
 struct PageFrame {
-    int64_t page_id   = INVALID_PAGE_ID;  ///< Byte offset in the file.
-    int     pin_count = 0;                ///< Number of active users.
-    bool    dirty     = false;            ///< True if modified since last flush.
-    char    data[PAGE_SIZE]{};            ///< In-memory copy of the page.
+    int64_t   page_id   = INVALID_PAGE_ID;  ///< Byte offset in the file.
+    int       pin_count = 0;                ///< Number of active users.
+    bool      dirty     = false;            ///< True if modified since last flush.
+    char      data[PAGE_SIZE]{};            ///< In-memory copy of the page.
+    PageLatch latch{};                      ///< Reader-writer latch for this frame.
 };
 
 /// An LRU buffer pool that sits between the B+ tree and the DiskManager.
@@ -91,6 +98,22 @@ public:
     /// @return false if the page is pinned or not in the pool.
     bool DeletePage(int64_t page_id);
 
+    // -- Latch interface (for latch crabbing in the B+ tree) ----------------
+
+    /// Acquire a shared (read) latch on the page at @p page_id.
+    /// The page must already be pinned.  Returns false if not in pool.
+    bool RLatchPage(int64_t page_id);
+
+    /// Release the shared (read) latch on the page at @p page_id.
+    bool RUnlatchPage(int64_t page_id);
+
+    /// Acquire an exclusive (write) latch on the page at @p page_id.
+    /// The page must already be pinned.  Returns false if not in pool.
+    bool WLatchPage(int64_t page_id);
+
+    /// Release the exclusive (write) latch on the page at @p page_id.
+    bool WUnlatchPage(int64_t page_id);
+
     // -- WAL integration ----------------------------------------------------
 
     /// Attach a WAL to the buffer pool.  When set, dirty pages are logged
@@ -121,6 +144,11 @@ private:
 
     DiskManager& disk_;
     size_t       pool_size_;
+
+    /// Coarse mutex protecting pool bookkeeping (page_table_, frames_ pin
+    /// counts, lru_list_, lru_map_, free_list_).  Page latches (PageFrame::latch)
+    /// are separate and give fine-grained per-page concurrency on top of this.
+    mutable std::mutex pool_mtx_;
 
     std::vector<PageFrame> frames_;
 

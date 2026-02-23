@@ -1,5 +1,15 @@
 /// @file buffer_pool.cpp
 /// @brief LRU buffer pool implementation.
+///
+/// Thread-safety model:
+///   pool_mtx_   -- coarse mutex guarding pool bookkeeping (page_table_,
+///                  frames_ pin counts, lru_list_, free_list_).
+///   PageFrame::latch -- per-frame reader-writer latch used by the B+ tree
+///                  for fine-grained page-level concurrency (latch crabbing).
+///
+/// The two locks nest strictly: pool_mtx_ first, then page latch.
+/// Latch helpers (RLatchPage etc.) release pool_mtx_ *before* blocking on
+/// the page latch so we don't deadlock. :)
 
 #include "bptree/buffer_pool.h"
 #include "bptree/wal.h"
@@ -33,6 +43,7 @@ BufferPool::~BufferPool() {
 
 char* BufferPool::FetchPage(int64_t page_id) {
     assert(page_id >= 0);
+    std::lock_guard<std::mutex> lock(pool_mtx_);
 
     // Already in pool?
     auto it = page_table_.find(page_id);
@@ -41,8 +52,7 @@ char* BufferPool::FetchPage(int64_t page_id) {
         int idx = it->second;
         PageFrame& f = frames_[idx];
         ++f.pin_count;
-        // If it was in the LRU (unpinned), remove it (pinned pages are not
-        // eviction candidates).
+        // Pinned pages are not eviction candidates -- remove from LRU.
         auto lru_it = lru_map_.find(idx);
         if (lru_it != lru_map_.end()) {
             lru_list_.erase(lru_it->second);
@@ -60,7 +70,7 @@ char* BufferPool::FetchPage(int64_t page_id) {
         free_list_.pop_back();
     } else {
         frame_idx = FindVictim();
-        if (frame_idx == -1) return nullptr;  // all frames pinned
+        if (frame_idx == -1) return nullptr;  // all frames pinned :(
         EvictFrame(frame_idx);
     }
 
@@ -82,6 +92,8 @@ char* BufferPool::FetchPage(int64_t page_id) {
 // ============================================================================
 
 bool BufferPool::UnpinPage(int64_t page_id, bool dirty) {
+    std::lock_guard<std::mutex> lock(pool_mtx_);
+
     auto it = page_table_.find(page_id);
     if (it == page_table_.end()) return false;
 
@@ -106,6 +118,8 @@ bool BufferPool::UnpinPage(int64_t page_id, bool dirty) {
 // ============================================================================
 
 bool BufferPool::FlushPage(int64_t page_id) {
+    std::lock_guard<std::mutex> lock(pool_mtx_);
+
     auto it = page_table_.find(page_id);
     if (it == page_table_.end()) return false;
 
@@ -125,7 +139,9 @@ bool BufferPool::FlushPage(int64_t page_id) {
 }
 
 void BufferPool::FlushAllPages() {
-    // WAL protocol: flush the WAL before writing pages to disk.
+    std::lock_guard<std::mutex> lock(pool_mtx_);
+
+    // WAL protocol: log all dirty pages before writing them to disk.
     if (wal_) {
         for (auto& [pid, idx] : page_table_) {
             PageFrame& f = frames_[idx];
@@ -152,10 +168,12 @@ void BufferPool::FlushAllPages() {
 // ============================================================================
 
 char* BufferPool::NewPage(int64_t& page_id) {
-    // Allocate on disk first.
+    // AllocatePage is called outside pool_mtx_ because it may grow the file
+    // and take a while.  We hold pool_mtx_ only for the frame bookkeeping.
     page_id = disk_.AllocatePage();
 
-    // Find a frame for it.
+    std::lock_guard<std::mutex> lock(pool_mtx_);
+
     int frame_idx = -1;
     if (!free_list_.empty()) {
         frame_idx = free_list_.back();
@@ -163,7 +181,7 @@ char* BufferPool::NewPage(int64_t& page_id) {
     } else {
         frame_idx = FindVictim();
         if (frame_idx == -1) {
-            // Cannot evict -- caller should flush.
+            // Cannot evict -- caller should flush. :(
             return nullptr;
         }
         EvictFrame(frame_idx);
@@ -184,6 +202,8 @@ char* BufferPool::NewPage(int64_t& page_id) {
 // ============================================================================
 
 bool BufferPool::DeletePage(int64_t page_id) {
+    std::lock_guard<std::mutex> lock(pool_mtx_);
+
     auto it = page_table_.find(page_id);
     if (it == page_table_.end()) return true;  // not in pool, nothing to do
 
@@ -209,7 +229,63 @@ bool BufferPool::DeletePage(int64_t page_id) {
 }
 
 // ============================================================================
-// LRU internals
+// Latch interface (for latch crabbing in the B+ tree)
+// ============================================================================
+
+// All four helpers: grab pool_mtx_ to locate the frame, then release it
+// *before* acquiring the page latch.  This avoids holding pool_mtx_ while
+// blocked on another thread's page latch, which would be a classic deadlock. :)
+
+bool BufferPool::RLatchPage(int64_t page_id) {
+    PageLatch* latch = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx_);
+        auto it = page_table_.find(page_id);
+        if (it == page_table_.end()) return false;
+        latch = &frames_[it->second].latch;
+    }
+    latch->RLock();
+    return true;
+}
+
+bool BufferPool::RUnlatchPage(int64_t page_id) {
+    PageLatch* latch = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx_);
+        auto it = page_table_.find(page_id);
+        if (it == page_table_.end()) return false;
+        latch = &frames_[it->second].latch;
+    }
+    latch->RUnlock();
+    return true;
+}
+
+bool BufferPool::WLatchPage(int64_t page_id) {
+    PageLatch* latch = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx_);
+        auto it = page_table_.find(page_id);
+        if (it == page_table_.end()) return false;
+        latch = &frames_[it->second].latch;
+    }
+    latch->WLock();
+    return true;
+}
+
+bool BufferPool::WUnlatchPage(int64_t page_id) {
+    PageLatch* latch = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx_);
+        auto it = page_table_.find(page_id);
+        if (it == page_table_.end()) return false;
+        latch = &frames_[it->second].latch;
+    }
+    latch->WUnlock();
+    return true;
+}
+
+// ============================================================================
+// LRU internals (must be called with pool_mtx_ held)
 // ============================================================================
 
 int BufferPool::FindVictim() {
