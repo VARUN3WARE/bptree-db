@@ -85,6 +85,16 @@ target_link_libraries(sql_test PRIVATE bptree_sql GTest::gtest_main)
 gtest_discover_tests(sql_test)
 
 # -------------------------------------------------------------------
+# Metrics integration test
+# -------------------------------------------------------------------
+add_executable(metrics_test
+    metrics_test.cpp
+)
+target_link_libraries(metrics_test PRIVATE bptree GTest::gtest_main Threads::Threads)
+gtest_discover_tests(metrics_test)
+
+
+# -------------------------------------------------------------------
 # Network integration tests
 # -------------------------------------------------------------------
 add_executable(net_test

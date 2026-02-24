@@ -174,6 +174,19 @@ static void CmdStats(IntTree& tree) {
               << "\n  WAL bytes written: " << tree.WALBytesWritten()
               << "\n  WAL records:       " << tree.WALRecordsWritten()
               << "\n";
+
+    const auto& m = tree.GetMetrics();
+    auto print_m = [](const char* name, const auto& op) {
+        std::cout << "  " << name << " \t: " << op.count.load() << " ops, "
+                  << static_cast<int>(op.AverageUs()) << " us avg, "
+                  << op.max_us.load() << " us max\n";
+    };
+    std::cout << "\n  --- Latency Metrics ---\n";
+    print_m("Insert", m.insert);
+    print_m("Search", m.search);
+    print_m("Delete", m.remove);
+    print_m("Range ", m.range);
+    std::cout << "\n";
 }
 
 // ---------------------------------------------------------------------------

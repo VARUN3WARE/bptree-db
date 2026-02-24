@@ -1,0 +1,15 @@
+PROJECT_NAME           = "bptree-db"
+PROJECT_BRIEF          = "A high-performance disk-based B+ tree storage engine"
+OUTPUT_DIRECTORY       = docs/api
+INPUT                  = include/bptree src
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+GENERATE_LATEX         = NO
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+# Treat all headers as C++
+EXTENSION_MAPPING      = h=C++ tpp=C++
+FILE_PATTERNS          = *.h *.tpp *.cpp
+WARN_IF_UNDOCUMENTED   = NO
+SOURCE_BROWSER         = YES

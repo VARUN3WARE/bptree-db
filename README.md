@@ -9,32 +9,6 @@ sorted key-value storage with efficient range queries.
 
 ---
 
-## Features
-
-| Feature                                               | Status         |
-| ----------------------------------------------------- | -------------- |
-| Disk-persistent B+ tree with 4 KB pages               | done           |
-| Memory-mapped I/O (mmap) for zero-copy reads          | done           |
-| Insert / upsert / point lookup / range query / delete | done           |
-| Automatic node splitting on overflow                  | done           |
-| Leaf linked-list for fast range scans                 | done           |
-| Delete rebalancing (redistribute + merge)             | done           |
-| Free-page list (recycled disk space)                  | done           |
-| Clean separation: DiskManager -> BufferPool -> Tree   | done           |
-| Status error type (no exit(1))                        | done           |
-| Google Test suite (40+ tests)                         | done           |
-| Interactive CLI shell                                 | done           |
-| Performance benchmark tool                            | done           |
-| Buffer pool manager (LRU, pin/unpin, hit/miss stats)  | done           |
-| Write-ahead log (WAL, CRC32, checkpoint/recovery)     | done           |
-| Structured logging (severity levels, file + console)  | done           |
-| Tree visualizer (DOT/Graphviz + ASCII)                | done           |
-| Concurrency control (reader-writer latches, crabbing) | done           |
-| Templated keys (int, int64_t, std::string)            | done           |
-| Variable-length records (slotted pages)               | Phase 2        |
-| SQL parser and executor                               | Phase 3        |
-| TCP server                                            | Phase 4        |
-
 ## Architecture
 
 ```
@@ -147,6 +121,14 @@ tree.Checkpoint();
 | Search      | O(log n)     |
 | Range Query | O(log n + k) |
 | Delete      | O(log n)     |
+
+## Generate API Docs
+
+If you have Doxygen installed, you can generate HTML documentation from the source code.
+```bash
+doxygen Doxyfile
+# Open docs/api/html/index.html in your browser
+```
 
 ## Project Structure
 
