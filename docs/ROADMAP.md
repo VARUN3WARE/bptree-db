@@ -58,11 +58,10 @@ portfolio-grade storage engine and eventually a mini database.
 
 ## Phase 4 — Networking & Client
 
-- [ ] **TCP server** — epoll-based event loop; accept concurrent connections
-- [ ] **Wire protocol** — simple text or length-prefixed binary protocol
-      (optionally a subset of the PostgreSQL wire protocol)
-- [ ] **Client library** — C++ client that connects over TCP
-- [ ] **CLI client** — `bptree-cli` that sends SQL over the wire to the server
+- [x] **TCP server** — thread-per-client model; accept + dispatch to Executor
+- [x] **Wire protocol** — 4-byte length prefix + 1-byte type byte frames
+- [x] **Client library** — C++ `Client` class (Connect / Query / Disconnect)
+- [x] **CLI client** — `bptree-cli` REPL with ASCII table output
 - [ ] **Connection pooling** — limit concurrent connections; queue overflow
 
 ---

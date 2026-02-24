@@ -5,6 +5,7 @@
 
 #include "bptree/net/message.h"
 
+#include <stdexcept>
 #include <string>
 
 namespace bptree::net {

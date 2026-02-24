@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace bptree::net {
@@ -28,6 +29,6 @@ enum class MsgType : uint8_t {
 // offset 5 : payload_len bytes of UTF-8 text
 // ---------------------------------------------------------------------------
 
-static constexpr size_t kHeaderSize = 5;  // 4 (len) + 1 (type)
+constexpr int kHeaderSize = 5;  // 4 (len) + 1 (type)
 
 } // namespace bptree::net
