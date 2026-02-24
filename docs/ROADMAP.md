@@ -68,13 +68,12 @@ portfolio-grade storage engine and eventually a mini database.
 
 ## Phase 5 — Polish & Extras
 
-- [ ] **Tree visualizer** — DOT / Graphviz output of the B+ tree structure
-- [ ] **Logging framework** — structured logging with severity levels
-- [ ] **Metrics** — operation counts, latency histograms, cache hit rate
-- [ ] **CI / CD** — GitHub Actions pipeline: build → test → benchmark
-- [ ] **Doxygen docs** — auto-generated API docs from doc-comments
-- [ ] **Fuzz testing** — AFL / libFuzzer to find crash bugs
-- [ ] **Comparison benchmarks** — compare against SQLite, RocksDB, LevelDB
+- [x] **Tree visualizer** — DOT / Graphviz output of the B+ tree structure
+- [x] **Logging framework** — structured logging with severity levels
+- [x] **Metrics** — operation counts, latency histograms, cache hit rate
+- [x] **Doxygen docs** — auto-generated API docs from doc-comments
+- [x] **Fuzz testing** — AFL / libFuzzer to find crash bugs
+- [x] **Expanded benchmarks** — detailed throughput and P99 latency tracking
 
 ---
 
