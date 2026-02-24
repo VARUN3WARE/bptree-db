@@ -39,3 +39,9 @@ if(BPTREE_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Fuzz Testing
+option(BPTREE_BUILD_FUZZ "Build libFuzzer targets" OFF)
+if(BPTREE_BUILD_FUZZ)
+    add_subdirectory(fuzz)
+endif()
