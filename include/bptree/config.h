@@ -12,7 +12,7 @@ namespace bptree {
 // Page layout
 // ---------------------------------------------------------------------------
 constexpr size_t   PAGE_SIZE          = 4096;   ///< Bytes per disk page
-constexpr size_t   DATA_SIZE          = 100;    ///< Fixed record payload size
+constexpr size_t   DATA_SIZE          = 256;    ///< Fixed record payload size (row bytes)
 
 // ---------------------------------------------------------------------------
 // B+ tree fan-out (derived from page size)

@@ -75,3 +75,20 @@ add_executable(typed_key_test
 target_link_libraries(typed_key_test PRIVATE bptree GTest::gtest_main)
 gtest_discover_tests(typed_key_test)
 
+# -------------------------------------------------------------------
+# SQL layer tests (lexer, parser, executor)
+# -------------------------------------------------------------------
+add_executable(sql_test
+    sql_test.cpp
+)
+target_link_libraries(sql_test PRIVATE bptree_sql GTest::gtest_main)
+gtest_discover_tests(sql_test)
+
+# -------------------------------------------------------------------
+# Network integration tests
+# -------------------------------------------------------------------
+add_executable(net_test
+    net_test.cpp
+)
+target_link_libraries(net_test PRIVATE bptree_net GTest::gtest_main Threads::Threads)
+gtest_discover_tests(net_test)

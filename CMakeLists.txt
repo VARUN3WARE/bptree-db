@@ -24,6 +24,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O3 -march=native)
 endif()
 
+# Threading support (needed by bptree_net)
+find_package(Threads REQUIRED)
+
 # Core library
 add_subdirectory(src)
 
