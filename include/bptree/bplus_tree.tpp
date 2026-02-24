@@ -212,6 +212,8 @@ int64_t BPlusTree<K,Cmp>::SearchLeaf(const K& key) const {
 
 template <typename K, typename Cmp>
 Status BPlusTree<K,Cmp>::Search(const K& key, char* data_out) const {
+    ScopedTimer timer(metrics_.search);
+
     int64_t leaf_off = SearchLeaf(key);
     if (leaf_off == INVALID_PAGE_ID) return Status::NotFound("key not found");
 
@@ -250,6 +252,8 @@ Status BPlusTree<K,Cmp>::Search(const K& key, std::string& value_out) const {
 template <typename K, typename Cmp>
 Status BPlusTree<K,Cmp>::RangeQuery(const K& lower, const K& upper,
                                     std::vector<std::pair<K, std::string>>& results) const {
+    ScopedTimer timer(metrics_.range);
+
     results.clear();
 
     if (Less(upper, lower)) return Status::InvalidArg("lower > upper");
@@ -292,6 +296,7 @@ Status BPlusTree<K,Cmp>::RangeQuery(const K& lower, const K& upper,
 
 template <typename K, typename Cmp>
 Status BPlusTree<K,Cmp>::Insert(const K& key, const char* data) {
+    ScopedTimer timer(metrics_.insert);
     std::lock_guard<std::mutex> lock(tree_mtx_);
 
     char padded[DATA_SIZE]{};
@@ -531,6 +536,7 @@ bool BPlusTree<K,Cmp>::InsertIntoInternal(int64_t node_off, const K& key, int64_
 
 template <typename K, typename Cmp>
 Status BPlusTree<K,Cmp>::Delete(const K& key) {
+    ScopedTimer timer(metrics_.remove);
     std::lock_guard<std::mutex> lock(tree_mtx_);
 
     if (root_offset_ == INVALID_PAGE_ID) return Status::NotFound("key not found");

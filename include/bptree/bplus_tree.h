@@ -12,6 +12,7 @@
 #include "wal.h"
 #include "latch.h"
 #include "comparator.h"
+#include "metrics.h"
 
 #include <memory>
 #include <mutex>
@@ -100,6 +101,9 @@ public:
     /// Force a WAL checkpoint: flush all dirty pages, then truncate the log.
     void Checkpoint();
 
+    /// Retrieve operation counters and latencies.
+    [[nodiscard]] const OpMetrics& GetMetrics() const { return metrics_; }
+
     /// Buffer pool statistics.
     [[nodiscard]] size_t BufferPoolHits()    const;
     [[nodiscard]] size_t BufferPoolMisses()  const;
@@ -160,6 +164,7 @@ private:
     int64_t root_offset_      = INVALID_PAGE_ID;
     int64_t next_page_offset_ = PAGE_SIZE;
     Cmp     cmp_{};                         ///< Key comparator instance.
+    mutable OpMetrics metrics_;             ///< Operation counters and latencies.
 
     /// Tree-level mutex serialises all write operations (Insert / Delete).
     /// Reads (Search, RangeQuery) use only page-level latches and can run
