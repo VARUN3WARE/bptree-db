@@ -164,17 +164,7 @@ docs/
     ARCHITECTURE.md         -- Design documentation
     ROADMAP.md              -- Phased development plan
 ```
-
-## Roadmap
-
-| Phase | Focus                                             | Status     |
-| ----- | ------------------------------------------------- | ---------- |
-| 1     | Code quality, modular architecture, testing       | done       |
-| 2     | Buffer pool, WAL, concurrency, delete rebalancing | in progress|
-| 3     | SQL tokenizer, parser, executor                   | planned    |
-| 4     | TCP server, wire protocol, client library         | planned    |
-| 5     | Logging, metrics, CI/CD, fuzz testing             | planned    |
-
+s
 Full details: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## License
