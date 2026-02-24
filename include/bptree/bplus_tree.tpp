@@ -236,8 +236,9 @@ Status BPlusTree<K,Cmp>::Search(const K& key, std::string& value_out) const {
     char buf[DATA_SIZE];
     Status s = Search(key, buf);
     if (s.ok()) {
-        size_t len = ::strnlen(buf, DATA_SIZE);
-        value_out.assign(buf, len);
+        // Use strnlen so callers that store text get a clean string. :)
+        // Callers that store binary rows should use Search(key, char*) directly.
+        value_out.assign(buf, ::strnlen(buf, DATA_SIZE));
     }
     return s;
 }
@@ -271,7 +272,7 @@ Status BPlusTree<K,Cmp>::RangeQuery(const K& lower, const K& upper,
             if (!Less(k, lower)) {                         // k >= lower
                 char buf[DATA_SIZE];
                 leaf.GetData(i, buf);
-                results.emplace_back(k, std::string(buf, ::strnlen(buf, DATA_SIZE)));
+                results.emplace_back(k, std::string(buf, DATA_SIZE));
             }
         }
 
@@ -294,7 +295,8 @@ Status BPlusTree<K,Cmp>::Insert(const K& key, const char* data) {
     std::lock_guard<std::mutex> lock(tree_mtx_);
 
     char padded[DATA_SIZE]{};
-    std::memcpy(padded, data, std::min(std::strlen(data) + 1, DATA_SIZE));
+    // Data is binary (may contain null bytes) -- always copy full DATA_SIZE bytes.
+    std::memcpy(padded, data, DATA_SIZE);
 
     // Empty tree -- create root leaf.
     if (root_offset_ == INVALID_PAGE_ID) {
