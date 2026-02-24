@@ -30,3 +30,19 @@ target_include_directories(bptree_sql
 
 target_link_libraries(bptree_sql PUBLIC bptree)
 target_compile_features(bptree_sql PUBLIC cxx_std_17)
+
+# -------------------------------------------------------------------
+# Networking library — protocol, server, client
+# -------------------------------------------------------------------
+add_library(bptree_net
+    net/message.cpp
+    net/server.cpp
+    net/client.cpp
+)
+
+target_include_directories(bptree_net
+    PUBLIC  ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(bptree_net PUBLIC bptree_sql Threads::Threads)
+target_compile_features(bptree_net PUBLIC cxx_std_17)
