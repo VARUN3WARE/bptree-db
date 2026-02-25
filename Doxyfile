@@ -1,4 +1,4 @@
-PROJECT_NAME           = "bptree-db"
+PROJECT_NAME           = "BPlusSQL"
 PROJECT_BRIEF          = "A high-performance disk-based B+ tree storage engine"
 OUTPUT_DIRECTORY       = docs/api
 INPUT                  = include/bptree src

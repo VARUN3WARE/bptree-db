@@ -1,5 +1,4 @@
-// Copyright (c) 2025 bptree-db
-// Logger tests
+// Copyright (c) 2025 BPlusSQL// Logger tests
 
 #include "bptree/logger.h"
 #include <gtest/gtest.h>

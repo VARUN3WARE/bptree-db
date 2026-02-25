@@ -1,5 +1,5 @@
 /// @file client.h
-/// @brief C++ client library for bptree-db over the wire protocol.
+/// @brief C++ client library for BPlusSQL over the wire protocol.
 
 #pragma once
 

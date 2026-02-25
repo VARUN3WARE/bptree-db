@@ -1,5 +1,5 @@
 /// @file bptree_server.cpp
-/// @brief bptree-db TCP server launcher.
+/// @brief BPlusSQL TCP server launcher.
 ///        Usage: bptree_server [--port N] [--data-dir PATH]
 
 #include "bptree/net/server.h"
@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 
     if (!server.Start(port)) return 1;
 
-    std::cout << "bptree-db listening on port " << port
+    std::cout << "BPlusSQL listening on port " << port
               << "  (data-dir=" << data_dir << ")\n"
               << "Press Ctrl-C to stop.\n";
 

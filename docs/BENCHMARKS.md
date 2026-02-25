@@ -1,6 +1,6 @@
 # B+ Tree Storage Engine Benchmarks
 
-This document details the latency and throughput profile of the `bptree-db` storage engine. Testing covers point queries, range scans, inserts, and a mixed CRUD workload.
+This document details the latency and throughput profile of the `BPlusSQL` storage engine. Testing covers point queries, range scans, inserts, and a mixed CRUD workload.
 
 ## Methodology
 - **Specs:** Evaluated using the `/tools/bench` executable.

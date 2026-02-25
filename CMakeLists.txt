@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(bptree-db
+project(BPlusSQL
     VERSION 1.0.0
     DESCRIPTION "A high-performance disk-based B+ tree storage engine"
     LANGUAGES CXX

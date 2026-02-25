@@ -1,4 +1,4 @@
-# bptree-db
+# BPlusSQL
 
 A disk-based **B+ tree storage engine** built from scratch in modern C++17.
 Uses memory-mapped I/O for zero-copy page access and delivers persistent,

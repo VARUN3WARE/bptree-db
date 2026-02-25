@@ -1,5 +1,5 @@
 /// @file protocol.h
-/// @brief Wire protocol constants for bptree-db.
+/// @brief Wire protocol constants for BPlusSQL.
 ///        Simple framing: [4B length LE][1B type][payload]
 ///        Think of it as a walkie-talkie, but for databases. :)
 
